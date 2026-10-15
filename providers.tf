@@ -7,18 +7,12 @@ provider "aws" {
     tags = var.COMMON_TAGS
   }
 }
-
-# Read the existing EKS cluster
-data "aws_eks_cluster" "this" {
-  name = var.EKS_CLUSTER_NAME
-}
-
 # Kubernetes Provider
 provider "kubernetes" {
-  host = data.aws_eks_cluster.this.endpoint
+  host = module.eks_cluster.EKS_CLUSTER_ENDPOINT
 
   cluster_ca_certificate = base64decode(
-    data.aws_eks_cluster.this.certificate_authority[0].data
+    module.eks_cluster.EKS_CLUSTER_CERTIFICATE_AUTHORITY_DATA
   )
 
   exec {
@@ -39,10 +33,10 @@ provider "kubernetes" {
 # Helm Provider (version 3 syntax)
 provider "helm" {
   kubernetes = {
-    host = data.aws_eks_cluster.this.endpoint
+    host = module.eks_cluster.EKS_CLUSTER_ENDPOINT
 
     cluster_ca_certificate = base64decode(
-      data.aws_eks_cluster.this.certificate_authority[0].data
+      module.eks_cluster.EKS_CLUSTER_CERTIFICATE_AUTHORITY_DATA
     )
 
     exec = {
