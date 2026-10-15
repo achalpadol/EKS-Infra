@@ -1,0 +1,113 @@
+
+name: Terraform Infrastructure Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      Environment:
+        description: "Select the environment"
+        required: true
+        type: choice
+        options:
+          - dev
+          - qa
+          - uat
+          - prod
+
+      Terraform_Action:
+        description: "Select the Terraform action"
+        required: true
+        type: choice
+        options:
+          - init
+          - plan
+          - apply
+          - destroy
+
+      Auto_Approve:
+        description: "Skip the GitHub manual approval gate for apply/destroy"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write
+  contents: read
+
+# Prevent simultaneous workflow runs against the same environment.
+concurrency:
+  group: terraform-${{ inputs.Environment }}
+  cancel-in-progress: false
+
+jobs:
+  terraform:
+    name: Terraform ${{ inputs.Terraform_Action }} - ${{ inputs.Environment }}
+    runs-on: ubuntu-latest
+
+    # Configure these two GitHub environments:
+    # terraform-approval: required reviewers enabled
+    # terraform-no-approval: no required reviewers
+    environment:
+      name: ${{ (inputs.Terraform_Action == 'apply' || inputs.Terraform_Action == 'destroy') && !inputs.Auto_Approve && 'terraform-approval' || 'terraform-no-approval' }}
+
+    env:
+      AWS_REGION: ap-south-1
+      AWS_DEFAULT_REGION: ap-south-1
+      TF_IN_AUTOMATION: true
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActionsTerraform
+
+      - name: Verify AWS Identity
+        run: aws sts get-caller-identity
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.16.1"
+
+      - name: Terraform Init
+        run: |
+          echo "========================================"
+          echo "Terraform Init"
+          echo "Environment: ${{ inputs.Environment }}"
+          echo "========================================"
+
+          terraform init -reconfigure \
+            -backend-config="backend_conf/backend-${{ inputs.Environment }}.conf"
+
+      - name: Terraform Validate
+        if: ${{ inputs.Terraform_Action == 'plan' || inputs.Terraform_Action == 'apply' }}
+        run: terraform validate
+
+      - name: Terraform Plan
+        if: ${{ inputs.Terraform_Action == 'plan' }}
+        run: |
+          terraform plan \
+            -var-file="environments/${{ inputs.Environment }}.tfvars"
+
+      - name: Terraform Apply
+        if: ${{ inputs.Terraform_Action == 'apply' }}
+        run: |
+          terraform apply \
+            -var-file="environments/${{ inputs.Environment }}.tfvars" \
+            -auto-approve
+
+      - name: Terraform Destroy
+        if: ${{ inputs.Terraform_Action == 'destroy' }}
+        run: |
+          terraform destroy \
+            -var-file="environments/${{ inputs.Environment }}.tfvars" \
+            -auto-approve
+
+      - name: Terraform Init Completed
+        if: ${{ inputs.Terraform_Action == 'init' }}
+        run: echo "Terraform initialization completed successfully."
