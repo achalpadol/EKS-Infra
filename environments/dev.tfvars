@@ -42,9 +42,9 @@ EKS_CLUSTER_VERSION = "1.34"
 #EKS-NODE-GROUP
 EKS_NODE_GROUP_NAME = "dev-eks-workers"
 NODE_INSTANCE_TYPES = ["t3.small"]
-NODE_DESIRED_SIZE   = 2
-NODE_MIN_SIZE       = 2
-NODE_MAX_SIZE       = 3
+NODE_DESIRED_SIZE   = 1
+NODE_MIN_SIZE       = 1
+NODE_MAX_SIZE       = 2
 NODE_DISK_SIZE      = 30
 #ALB-Controller
 ALB_CONTROLLER_ROLE_NAME     = "dev-eks-alb-controller-role"
